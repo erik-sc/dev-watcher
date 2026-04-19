@@ -10,7 +10,7 @@ dependencies = [
     "typer>=0.12",
     "watchdog>=4.0",
     "gitpython>=3.1",
-    "pywin32>=306",
+    "pywin32>=306; sys_platform == 'win32'",
     "anthropic>=0.40",
 ]
 
@@ -22,3 +22,6 @@ dev = [
     "pytest>=8.0",
     "pytest-mock>=3.14",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
