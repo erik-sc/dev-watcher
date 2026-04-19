@@ -49,6 +49,9 @@ def init_db(conn: sqlite3.Connection) -> None:
             tokens_out  INTEGER,
             payload_md5 TEXT
         );
+        CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
+        CREATE INDEX IF NOT EXISTS idx_api_log_ts ON api_log(ts);
+        CREATE INDEX IF NOT EXISTS idx_summaries_period ON summaries(period);
     """)
     conn.commit()
 
@@ -77,7 +80,7 @@ def get_recent_events(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
 
 
 def get_events_since(conn: sqlite3.Connection, since_ts: int) -> list[dict]:
-    """Get events since a given timestamp in ascending order."""
+    """Get events since a given timestamp in ascending order (inclusive lower bound)."""
     rows = conn.execute(
         "SELECT id, ts, kind, project, payload FROM events WHERE ts >= ? ORDER BY ts ASC",
         (since_ts,),
