@@ -88,25 +88,36 @@ class Config:
 
     @property
     def watch_dirs_expanded(self) -> list[Path]:
-        return [Path(d).expanduser() for d in self.capture.watch_dirs]
+        return [Path(d).expanduser().resolve() for d in self.capture.watch_dirs]
 
 
 def load_config(config_path: Path | None = None) -> Config:
     path = config_path or CONFIG_PATH
     if not path.exists():
         return Config()
-    with open(path, "rb") as f:
+    with open(path, "rb") as f:  # tomllib requires binary mode
         data = tomllib.load(f)
     return _parse_config(data)
 
 
 def _parse_config(data: dict) -> Config:
-    return Config(
-        general=GeneralConfig(**data.get("general", {})),
-        capture=CaptureConfig(**data.get("capture", {})),
-        privacy=PrivacyConfig(**data.get("privacy", {})),
-        ai=AIConfig(**data.get("ai", {})),
-    )
+    try:
+        general = GeneralConfig(**data.get("general", {}))
+    except TypeError as exc:
+        raise ValueError(f"Invalid key in [general] section: {exc}") from exc
+    try:
+        capture = CaptureConfig(**data.get("capture", {}))
+    except TypeError as exc:
+        raise ValueError(f"Invalid key in [capture] section: {exc}") from exc
+    try:
+        privacy = PrivacyConfig(**data.get("privacy", {}))
+    except TypeError as exc:
+        raise ValueError(f"Invalid key in [privacy] section: {exc}") from exc
+    try:
+        ai = AIConfig(**data.get("ai", {}))
+    except TypeError as exc:
+        raise ValueError(f"Invalid key in [ai] section: {exc}") from exc
+    return Config(general=general, capture=capture, privacy=privacy, ai=ai)
 
 
 def write_default_config(config_path: Path | None = None) -> None:
