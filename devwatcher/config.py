@@ -35,6 +35,7 @@ global_ignore = ["~/.ssh", "~/.aws", "~/.env*"]
 [ai]
 provider = "anthropic"
 model = "claude-sonnet-4-6"
+api_key = ""
 base_url = ""
 max_tokens_per_request = 2000
 """
@@ -75,6 +76,7 @@ class PrivacyConfig:
 class AIConfig:
     provider: str = "anthropic"
     model: str = "claude-sonnet-4-6"
+    api_key: str = ""
     base_url: str = ""
     max_tokens_per_request: int = 2000
 

@@ -13,12 +13,26 @@ import typer
 app = typer.Typer(help="DevWatcher — rastreador de atividade do desenvolvedor")
 
 
-def _require_api_key() -> str:
-    key = os.environ.get("DEVWATCHER_API_KEY", "")
+def _resolve_api_key(config_key: str) -> str:
+    key = os.environ.get("DEVWATCHER_API_KEY", "") or config_key
     if not key:
-        typer.echo("Erro: variável DEVWATCHER_API_KEY não definida.", err=True)
+        typer.echo(
+            "Erro: chave de API não configurada.\n"
+            "Defina DEVWATCHER_API_KEY ou adicione api_key em [ai] no config.toml.",
+            err=True,
+        )
         raise typer.Exit(1)
     return key
+
+
+def _make_provider(config):
+    from devwatcher.config import AIConfig
+    api_key = _resolve_api_key(config.ai.api_key)
+    if config.ai.provider == "gemini":
+        from devwatcher.providers.gemini import GeminiProvider
+        return GeminiProvider(api_key, config.ai.model, config.ai.max_tokens_per_request)
+    from devwatcher.providers.anthropic import AnthropicProvider
+    return AnthropicProvider(api_key, config.ai.model, config.ai.max_tokens_per_request)
 
 
 @app.command()
@@ -105,7 +119,6 @@ def _generate_period_summary(period_type: str) -> None:
     from devwatcher import db as db_module
     from devwatcher.config import load_config
     from devwatcher.processor import generate_summary
-    from devwatcher.providers.anthropic import AnthropicProvider
 
     config = load_config()
     conn = db_module.get_db()
@@ -120,8 +133,7 @@ def _generate_period_summary(period_type: str) -> None:
         since_ts = int(datetime(monday.year, monday.month, monday.day).timestamp())
         period = f"week:{now.strftime('%Y-W%W')}"
 
-    api_key = _require_api_key()
-    provider = AnthropicProvider(api_key, config.ai.model, config.ai.max_tokens_per_request)
+    provider = _make_provider(config)
 
     typer.echo("Gerando resumo...")
     content = generate_summary(provider, conn, period, since_ts, config)

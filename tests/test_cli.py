@@ -51,7 +51,7 @@ def test_today_calls_generate_summary(tmp_db, tmp_path, monkeypatch):
     mock_provider.generate.return_value = "# Resumo\nFiz coisas hoje."
 
     with patch("devwatcher.db.get_db", return_value=tmp_db), \
-         patch("devwatcher.providers.anthropic.AnthropicProvider", return_value=mock_provider):
+         patch("devwatcher.cli._make_provider", return_value=mock_provider):
         result = runner.invoke(app, ["today"])
 
     assert result.exit_code == 0
