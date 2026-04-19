@@ -188,3 +188,6 @@ devwatcher/
     ├── git.py      # git commit + branch polling
     └── window.py   # active window via pywin32
 ```
+
+
+## Testando funcionalidade de commits etc.
