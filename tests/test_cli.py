@@ -42,8 +42,9 @@ def test_status_shows_daemon_state(tmp_db, tmp_path, monkeypatch):
     assert "file_save" in result.output
 
 
-def test_today_calls_generate_summary(tmp_db, monkeypatch):
+def test_today_calls_generate_summary(tmp_db, tmp_path, monkeypatch):
     monkeypatch.setenv("DEVWATCHER_API_KEY", "fake-key")
+    monkeypatch.setattr("devwatcher.config.DEVWATCHER_DIR", tmp_path)
     insert_event(tmp_db, "file_save", "/proj", {"path": "/proj/main.py"})
 
     mock_provider = MagicMock()
