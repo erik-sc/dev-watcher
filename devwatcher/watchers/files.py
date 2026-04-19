@@ -29,7 +29,17 @@ class _FileEventHandler(FileSystemEventHandler):
 
     def _should_ignore(self, path: str) -> bool:
         normalized = path.replace("\\", "/")
-        return any(pattern.strip("/") in normalized for pattern in self._global_ignore)
+        for pattern in self._global_ignore:
+            # Expand ~ to home directory for matching
+            expanded = str(Path(pattern.rstrip("*")).expanduser()).replace("\\", "/")
+            if pattern.endswith("*"):
+                if expanded in normalized:
+                    return True
+            else:
+                clean = pattern.strip("/").replace("~", "").lstrip("/")
+                if clean in normalized or expanded in normalized:
+                    return True
+        return False
 
 
 def _detect_project(path: Path) -> str | None:
