@@ -63,3 +63,55 @@ def test_sanitize_dict_handles_list_values():
     assert result["files"][0] == "main.py"
     assert "[REDACTED]" in result["files"][1]
     assert result["files"][2] == "utils.py"
+
+
+def test_redacts_openai_project_key():
+    result = sanitize("sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcde")
+    assert "[REDACTED]" in result
+
+
+def test_redacts_aws_sts_key():
+    assert "[REDACTED]" in sanitize("ASIAIOSFODNN7EXAMPLE")
+
+
+def test_redacts_aws_role_key():
+    assert "[REDACTED]" in sanitize("AROAI234567890EXAMPLE")
+
+
+def test_redacts_aws_bia_key():
+    assert "[REDACTED]" in sanitize("ABIAIOSFODNN7EXAMPLE")
+
+
+def test_redacts_aws_cca_key():
+    assert "[REDACTED]" in sanitize("ACCAIOSFODNN7EXAMPLE")
+
+
+def test_connection_string_preserves_scheme():
+    url = "postgresql://admin:supersecret@localhost:5432/mydb"
+    result = sanitize(url)
+    assert "supersecret" not in result
+    assert "postgresql://" in result
+    assert "localhost" in result
+
+
+def test_does_not_corrupt_function_call_assignment():
+    code = "token = get_token()"
+    assert sanitize(code) == code
+
+
+def test_redacts_quoted_password_assignment():
+    assert "[REDACTED]" in sanitize('password = "mysecretpassword123"')
+
+
+def test_redacts_single_quoted_password():
+    assert "[REDACTED]" in sanitize("password = 'mysecretpassword123'")
+
+
+def test_sanitize_dict_recurses_into_nested_list():
+    d = {"nested": [["main.py", "AKIAIOSFODNN7EXAMPLE"]]}
+    result = sanitize_dict(d)
+    assert "[REDACTED]" in result["nested"][0][1]
+
+
+def test_github_app_token_gha_prefix():
+    assert "[REDACTED]" in sanitize("gha_1234567890abcdefghijklmnopqrstuvwxyzABCD")
