@@ -84,9 +84,30 @@ def build_prompt(sessions: list[Session]) -> str:
         lines.append(f"Horário: {start} — {end} ({minutes} min)")
         for c in s.commits:
             p = c.get("payload") or {}
-            lines.append(f"- commit: {p.get('message', 'sem mensagem')}")
+            wi = p.get("work_item_ref")
+            branch = p.get("branch", "")
+            prefix = f"[{wi}] " if wi else ""
+            lines.append(f"- commit: {prefix}{p.get('message', 'sem mensagem')}")
+            if branch:
+                lines.append(f"  branch: {branch}")
             if p.get("files"):
                 lines.append(f"  arquivos: {', '.join(p['files'][:5])}")
+            stats = p.get("stats")
+            if stats:
+                lines.append(
+                    f"  +{stats.get('insertions', 0)} -{stats.get('deletions', 0)} "
+                    f"em {stats.get('files', 0)} arquivo(s)"
+                )
+            if p.get("diff"):
+                lines.append("  diff:")
+                for diff_line in p["diff"].splitlines()[:40]:
+                    lines.append(f"    {diff_line}")
+        branch_events = [e for e in s.events if e["kind"] == "git_branch"]
+        for e in branch_events:
+            p = e.get("payload") or {}
+            wi = p.get("work_item_ref")
+            wi_note = f" ({wi})" if wi else ""
+            lines.append(f"- branch change: {p.get('from', '?')} → {p.get('to', '?')}{wi_note}")
         file_saves = sum(1 for e in s.events if e["kind"] == "file_save")
         if file_saves:
             lines.append(f"- {file_saves} arquivo(s) salvo(s)")

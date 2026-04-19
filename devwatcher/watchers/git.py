@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -8,7 +9,44 @@ from git import InvalidGitRepositoryError, Repo
 
 from devwatcher import db as db_module
 from devwatcher.config import Config
-from devwatcher.sanitizer import sanitize_dict
+from devwatcher.sanitizer import sanitize, sanitize_dict
+
+# Matches AB#1234 anywhere in a branch name (Azure DevOps work item link)
+_AZURE_WI_RE = re.compile(r'AB#(\d+)', re.IGNORECASE)
+
+_DIFF_MAX_CHARS = 4000
+
+
+def _parse_branch_info(branch_name: str) -> dict:
+    """Return work_item_id and work_item_ref if branch contains an Azure DevOps AB# reference."""
+    m = _AZURE_WI_RE.search(branch_name)
+    if m:
+        return {"work_item_id": m.group(1), "work_item_ref": f"AB#{m.group(1)}"}
+    return {}
+
+
+def _get_diff(commit, max_chars: int = _DIFF_MAX_CHARS) -> str | None:
+    if not commit.parents:
+        return None
+    try:
+        parts: list[str] = []
+        total = 0
+        for d in commit.parents[0].diff(commit, create_patch=True):
+            chunk = (
+                d.diff.decode("utf-8", errors="replace")
+                if isinstance(d.diff, bytes)
+                else str(d.diff)
+            )
+            remaining = max_chars - total
+            if len(chunk) >= remaining:
+                parts.append(chunk[:remaining])
+                parts.append("\n[diff truncated]")
+                break
+            parts.append(chunk)
+            total += len(chunk)
+        return sanitize("".join(parts)) if parts else None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -90,18 +128,29 @@ class GitPoller:
             return
 
         if branch != state.branch:
-            payload = sanitize_dict({"from": state.branch, "to": branch})
-            db_module.insert_event(self._conn, "git_branch", path, payload)
+            payload = {"from": state.branch, "to": branch}
+            payload.update(_parse_branch_info(branch))
+            db_module.insert_event(self._conn, "git_branch", path, sanitize_dict(payload))
             state.branch = branch
 
         if sha and sha != state.last_sha:
             commit = repo.head.commit
-            payload = sanitize_dict(
-                {
-                    "message": commit.message.strip(),
-                    "sha": sha[:8],
-                    "files": list(commit.stats.files.keys())[:20],
-                }
-            )
-            db_module.insert_event(self._conn, "git_commit", path, payload)
+            stats = commit.stats.total
+            payload: dict = {
+                "message": commit.message.strip(),
+                "sha": sha[:8],
+                "branch": branch,
+                "files": list(commit.stats.files.keys())[:20],
+                "stats": {
+                    "insertions": stats.get("insertions", 0),
+                    "deletions": stats.get("deletions", 0),
+                    "files": stats.get("files", 0),
+                },
+            }
+            payload.update(_parse_branch_info(branch))
+            if self._config.capture.git_diffs:
+                diff = _get_diff(commit)
+                if diff:
+                    payload["diff"] = diff
+            db_module.insert_event(self._conn, "git_commit", path, sanitize_dict(payload))
             state.last_sha = sha
